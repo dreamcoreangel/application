@@ -92,11 +92,10 @@ with tabs[1]:
                 # แปลภาษาโดยใช้ Google Translator
                 translated_text = translate_line(line)
                 
-                # นำคำแปลตั้งต้นใส่เข้าไปในตาราง
+                # นำคำแปลตั้งต้นใส่เข้าไปในตาราง (เอา Literal ออกแล้ว)
                 data.append({
                     "Source (ต้นทาง)": line,
-                    "Translation (คำแปล)": translated_text,
-                    "Literal Meaning (แปลตรงตัว)": translated_text
+                    "Translation (คำแปล)": translated_text
                 })
                 
                 my_bar.progress((i + 1) / len(lines), text=progress_text)
@@ -117,22 +116,14 @@ with tabs[2]:
             st.session_state['df_draft'],
             use_container_width=True,
             num_rows="dynamic",
-            column_order=["Source (ต้นทาง)", "Translation (คำแปล)", "Literal Meaning (แปลตรงตัว)"],
+            column_order=["Source (ต้นทาง)", "Translation (คำแปล)"], # แสดงแค่ 2 คอลัมน์
             column_config={
-                "Literal Meaning (แปลตรงตัว)": st.column_config.TextColumn("Literal Meaning (เทียบคำ)", disabled=True),
                 "Source (ต้นทาง)": st.column_config.TextColumn("Source", disabled=True)
             }
         )
         st.session_state['df_draft'] = edited_df 
+        # (ส่วนตัวช่วยหาคำคล้องจองด้านล่างตารางถูกลบออกไปแล้ว)
         
-        st.divider()
-        st.write("### 🔠 Thematic Rhyme Finder (ตัวช่วยหาคำคล้องจอง)")
-        col1, col2 = st.columns(2)
-        with col1:
-            search_word = st.text_input("พิมพ์คำที่ต้องการหาสัมผัส (เช่น: ใจ)")
-        with col2:
-            if search_word:
-                st.info("คำแนะนำ: ไป, ไกล, นัย, ภัย, ไหล (สามารถนำไปปรับใช้กับการแปลได้)")
     else:
         st.info("กรุณาสร้างดราฟต์ในขั้นตอนที่ 2 ก่อนครับ")
 
