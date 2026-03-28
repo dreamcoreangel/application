@@ -1,164 +1,166 @@
 import streamlit as st
-import re
+import pandas as pd
+import time
+import random
 
-# ==========================================
-# ตั้งค่าหน้าเพจ
-# ==========================================
-st.set_page_config(page_title="Game Loca Studio (Thai)", layout="wide")
+# --- ตั้งค่าหน้าเพจ ---
+st.set_page_config(page_title="LyricMuse | Smart Subtitle Studio", page_icon="🎼", layout="wide")
 
-st.title("🎮 Game Localization Studio (Thai Edition)")
-st.markdown("ระบบผู้ช่วยแปลเกมภาษาไทย อัจฉริยะ ป้องกันตัวแปรแตก และจำลองหน้าจอจริง")
+# --- ฟังก์ชันจำลอง AI (Mockup Functions) ---
+# ในการใช้งานจริง คุณสามารถเชื่อมต่อ Gemini API หรือ OpenAI API ในส่วนนี้ได้
+def analyze_mood(text):
+    moods = ["#Melancholic", "#Fantasy", "#Empowering", "#Romantic", "#Upbeat"]
+    return random.sample(moods, 2)
 
-# ==========================================
-# Sidebar สำหรับเลือกโหมดการทำงาน
-# ==========================================
-menu = st.sidebar.selectbox("เลือกโมดูลการทำงาน", [
-    "1. Lore & Context Engine",
-    "2. UI & Thai Rendering Sandbox",
-    "3. Code & Variable Armor",
-    "4. Gaming Standard QA"
-])
+def count_syllables(text):
+    # จำลองการนับพยางค์ (ใช้งานจริงอาจใช้ไลบรารี PyThaiNLP หรือนับสระภาษาอังกฤษ)
+    return len(str(text).split())
 
-# ==========================================
-# 1. ระบบจัดการจักรวาลเกมและบริบท (Lore & Context Engine)
-# ==========================================
-if menu == "1. Lore & Context Engine":
-    st.header("📖 1. Lore & Context Engine")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("Dynamic Pronoun Matrix")
-        speaker = st.selectbox("ผู้พูด", ["พระราชา", "อัศวิน", "ชาวบ้าน"])
-        listener = st.selectbox("ผู้ฟัง", ["พระราชา", "อัศวิน", "ชาวบ้าน"])
-        
-        # จำลอง Logic สรรพนาม
-        if speaker == "พระราชา" and listener == "อัศวิน":
-            st.info("💡 **คำแนะนำสรรพนาม:** เรา (ผู้พูด) / เจ้า, ท่าน (ผู้ฟัง)")
-        elif speaker == "ชาวบ้าน" and listener == "พระราชา":
-            st.info("💡 **คำแนะนำสรรพนาม:** ข้าพระพุทธเจ้า, กระหม่อม (ผู้พูด) / ฝ่าบาท (ผู้ฟัง)")
-        else:
-            st.info("💡 **คำแนะนำสรรพนาม:** ข้า (ผู้พูด) / เอ็ง, เจ้า (ผู้ฟัง)")
-
-    with col2:
-        st.subheader("Visual Asset Linker")
-        source_text = "He opened the old Chest."
-        st.write(f"**Source Text:** {source_text}")
-        
-        # จำลองการเจอคำศัพท์ใน Termbase
-        if "Chest" in source_text:
-            with st.expander("🔍 พบคำศัพท์ใน Termbase: Chest"):
-                st.image("https://images.unsplash.com/photo-1610419307730-80410427c3da?w=300", caption="คำแปลที่ถูกต้องในบริบทนี้: หีบสมบัติ (ไม่ใช่ หน้าอก)")
-                
-    st.divider()
-    st.subheader("Branching Dialogue Viewer")
-    st.code("""
-    [Start] "Who goes there?"
-      ├── (Choice 1) "A friend!" -> "Prove it, show your seal."
-      └── (Choice 2) [Attack] -> "Guards! To arms!" (You are translating this line)
-    """, language="plaintext")
-
-# ==========================================
-# 2. สภาพแวดล้อมจำลองและแก้ปัญหาภาษาไทย (UI & Thai Sandbox)
-# ==========================================
-elif menu == "2. UI & Thai Rendering Sandbox":
-    st.header("🖥️ 2. UI & Thai Rendering Sandbox")
-    
-    source = "I don't think we have enough time to defeat the dragon before sunset."
-    st.write(f"**ต้นฉบับ:** {source}")
-    
-    translation = st.text_area("ใส่คำแปลภาษาไทยของคุณที่นี่:", "ข้าไม่คิดว่าพวกเราจะมีเวลาเหลือพอที่จะปราบมังกรตัวนั้นก่อนที่พระอาทิตย์จะตกดินนะ")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("Live UI Text-Box Simulator")
-        char_limit = 50
-        st.write(f"**จำลองกล่องข้อความ (ลิมิต {char_limit} ตัวอักษร):**")
-        
-        # แสดงกล่อง UI จำลอง
-        box_color = "#2e7b32" if len(translation) <= char_limit else "#c62828"
-        st.markdown(f"""
-        <div style="background-color: #333; color: white; padding: 20px; border-radius: 10px; border: 3px solid {box_color}; width: 100%; height: 120px; font-family: Tahoma, sans-serif;">
-            {translation}
-        </div>
-        """, unsafe_allow_html=True)
-        
-        if len(translation) > char_limit:
-            st.error(f"⚠️ ข้อความยาวเกินไป! ({len(translation)}/{char_limit} ตัวอักษร) ตัวหนังสืออาจจะล้นกรอบหน้าจอเกม")
-        else:
-            st.success(f"✅ ความยาวผ่านเกณฑ์ ({len(translation)}/{char_limit})")
-
-    with col2:
-        st.subheader("Thai Font Engine Fixer")
-        # จำลองการเช็คสระซ้อน (วรรณยุกต์ลอย) ง่ายๆ โดยใช้ Regex เช็คว่ามีวรรณยุกต์ติดกันหรือไม่ (ในของจริงจะซับซ้อนกว่านี้)
-        invalid_thai = re.search(r'[\u0E48-\u0E4B]{2,}', translation)
-        if invalid_thai:
-            st.error("🚨 ตรวจพบวรรณยุกต์ซ้อนทับกัน (วรรณยุกต์ลอย/สระจม) กรุณาตรวจสอบ!")
-        elif "ำ" in translation and re.search(r'[\u0E48-\u0E4B]ำ', translation):
-             st.warning("⚠️ ตรวจพบการใช้ สระอำ ตามหลังวรรณยุกต์ บางเอนจินเกมอาจเรนเดอร์ผิดพลาด")
-        else:
-            st.success("✅ ไม่พบปัญหาสระจมหรือวรรณยุกต์ลอยในระดับเบื้องต้น")
-
-# ==========================================
-# 3. เกราะป้องกันโค้ดและตัวแปร (Code & Variable Armor)
-# ==========================================
-elif menu == "3. Code & Variable Armor":
-    st.header("🛡️ 3. Code & Variable Armor")
-    
-    source_code_text = "Welcome back, {Player_Name}! You have \\c[2]%d\\c[0] Gold."
-    st.write("**ต้นฉบับ:**", source_code_text)
-    
-    # ดึง Tags ออกมาจากต้นฉบับ
-    required_tags = ["{Player_Name}", "\\c[2]", "%d", "\\c[0]"]
-    st.info(f"🔒 **Tags ที่ห้ามลบ/แก้ไข:** `{'`, `'.join(required_tags)}`")
-    
-    user_input = st.text_area("คำแปลของคุณ:", "ยินดีต้อนรับกลับมานะ {Player_Name}! ตอนนี้ท่านมีทองอยู่ \\c[2]%d\\c[0] เหรียญ")
-    
-    # ระบบตรวจสอบ Tags
-    missing_tags = [tag for tag in required_tags if tag not in user_input]
-    if missing_tags:
-        st.error(f"❌ โค้ดพังแน่! คุณลบหรือพิมพ์ Tags เหล่านี้ผิด: `{'`, `'.join(missing_tags)}`")
+def mock_translate(text, tone):
+    # จำลองการแปลตามระดับภาษา
+    if tone == "Literary (ภาษากวี)":
+        return "ดั่งสายลมกระซิบผ่านกาลเวลา"
+    elif tone == "Contemporary (ร่วมสมัย)":
+        return "เหมือนลมที่พัดผ่านไปอย่างช้าๆ"
     else:
-        st.success("✅ Tags ครบถ้วน เกมไม่แครชแน่นอน!")
-        
-        st.subheader("Placeholder Preview (จำลองการแสดงผลจริง)")
-        preview = user_input.replace("{Player_Name}", "**อัศวินสมชาย**").replace("%d", "**50,000**")
-        # จำลอง Color Code
-        preview = preview.replace("\\c[2]", "<span style='color: gold;'>").replace("\\c[0]", "</span>")
-        
-        st.markdown(f"<div style='font-size: 18px;'>{preview}</div>", unsafe_allow_html=True)
+        return "เหมือนลมที่พัดไป"
 
-# ==========================================
-# 4. ระบบตรวจสอบคุณภาพเฉพาะทางเกม (Gaming Standard QA)
-# ==========================================
-elif menu == "4. Gaming Standard QA":
-    st.header("✅ 4. Gaming Standard QA")
-    
-    platform = st.radio("เลือกแพลตฟอร์มเป้าหมาย", ["PlayStation", "Xbox"])
-    text_to_qa = st.text_area("ข้อความที่รอตรวจสอบ:", "กดปุ่ม A เพื่อดู Achievements ของคุณ ไอระยำ!")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("Console Terminology Checker")
-        # จำลอง Terminology
-        if platform == "PlayStation":
-            if "Achievements" in [t.strip(",.!") for t in text_to_qa.split()]:
-                st.error("❌ ผิดมาตรฐาน PlayStation! ควรใช้คำว่า **Trophies** แทน **Achievements**")
-            if "ปุ่ม A" in text_to_qa:
-                st.error("❌ ผิดมาตรฐาน PlayStation! ควรใช้ **ปุ่ม X** หรือ **ปุ่มกากบาท**")
-        elif platform == "Xbox":
-            if "Trophies" in text_to_qa:
-                st.error("❌ ผิดมาตรฐาน Xbox! ควรใช้คำว่า **Achievements**")
-            st.success("✅ คำศัพท์แพลตฟอร์มถูกต้อง")
+# --- UI สไตล์ CSS ตกแต่ง ---
+st.markdown("""
+    <style>
+    .big-font { font-size:24px !important; font-weight: bold; color: #4A90E2; }
+    .tag { background-color: #E8F4F8; padding: 5px 10px; border-radius: 15px; font-size: 14px; margin-right: 5px; }
+    </style>
+""", unsafe_allow_html=True)
 
-    with col2:
-        st.subheader("Profanity & Age Rating Filter")
-        bad_words = ["ระยำ", "สัส", "เหี้ย"]
-        
-        found_bad_words = [word for word in bad_words if word in text_to_qa]
-        if found_bad_words:
-            st.warning(f"🔞 ตรวจพบคำหยาบคาย: {', '.join(found_bad_words)}")
-            st.write("หากเกมนี้เป็นเรต PEGI 3 (สำหรับทุกวัย) คุณจำเป็นต้องแก้คำเหล่านี้")
+st.title("🎼 LyricMuse")
+st.markdown("**สตูดิโอแปลซับไตเติลเพลงอัจฉริยะ (Smart Block-Based Workspace)**")
+st.divider()
+
+# --- Workflow ขั้นตอนต่างๆ ---
+tabs = st.tabs(["1. Ingest & Analyze", "2. Smart First Draft", "3. Interactive Polishing", "4. Pacing & Export"])
+
+# ตัวแปรสำหรับเก็บข้อมูลชั่วคราว (Session State)
+if 'raw_lyrics' not in st.session_state:
+    st.session_state['raw_lyrics'] = ""
+if 'analyzed' not in st.session_state:
+    st.session_state['analyzed'] = False
+if 'df_draft' not in st.session_state:
+    st.session_state['df_draft'] = pd.DataFrame()
+
+# ---------------------------------------------------------
+# ขั้นตอนที่ 1: Ingest & Analyze
+# ---------------------------------------------------------
+with tabs[0]:
+    st.markdown('<p class="big-font">📝 วางเนื้อหาและให้ AI ทำความเข้าใจ</p>', unsafe_allow_html=True)
+    raw_text = st.text_area("วางเนื้อเพลงต้นทาง (ภาษาอังกฤษ / ภาษาอื่นๆ):", height=200, placeholder="Paste your lyrics here...")
+    
+    if st.button("🔍 ถอดรหัสและวิเคราะห์ (Analyze)", type="primary"):
+        if raw_text:
+            with st.spinner("AI กำลังกวาดสายตาอ่านเนื้อเพลง..."):
+                time.sleep(1) # จำลองเวลาประมวลผล
+                st.session_state['raw_lyrics'] = raw_text
+                st.session_state['mood_tags'] = analyze_mood(raw_text)
+                st.session_state['analyzed'] = True
+                st.success("วิเคราะห์เสร็จสิ้น! ไปที่แท็บ '2. Smart First Draft' ได้เลย")
         else:
-            st.success("🟢 เนื้อหาสะอาด ผ่านเกณฑ์ทุกวัย")
+            st.warning("กรุณาวางเนื้อเพลงก่อนครับ")
+
+    if st.session_state['analyzed']:
+        st.write("### 🏷️ Auto-Tagging (Mood Analysis)")
+        tags_html = "".join([f'<span class="tag">{tag}</span>' for tag in st.session_state['mood_tags']])
+        st.markdown(tags_html, unsafe_allow_html=True)
+
+# ---------------------------------------------------------
+# ขั้นตอนที่ 2 & 3: Smart First Draft & Interactive Polishing
+# ---------------------------------------------------------
+with tabs[1]:
+    st.markdown('<p class="big-font">✨ สร้างวัตถุดิบตั้งต้น (The Smart First Draft)</p>', unsafe_allow_html=True)
+    if not st.session_state['analyzed']:
+        st.info("กรุณาวิเคราะห์เนื้อเพลงในขั้นตอนที่ 1 ก่อนครับ")
+    else:
+        tone_selected = st.select_slider(
+            "🎚️ ปรับระดับภาษา (Tone & Register Slider)",
+            options=["Casual (กันเอง)", "Contemporary (ร่วมสมัย)", "Literary (ภาษากวี)"],
+            value="Contemporary (ร่วมสมัย)"
+        )
+        
+        if st.button("🪄 สร้างดราฟต์แรก (Generate Draft)"):
+            lines = st.session_state['raw_lyrics'].strip().split('\n')
+            lines = [line for line in lines if line.strip() != ""] # ลบบรรทัดว่าง
+            
+            data = []
+            for line in lines:
+                src_syl = count_syllables(line)
+                translated = mock_translate(line, tone_selected)
+                tgt_syl = count_syllables(translated)
+                
+                data.append({
+                    "Source (ต้นทาง)": line,
+                    "Translation (คำแปล)": translated,
+                    "Syllables (พยางค์)": f"{src_syl} -> {tgt_syl}",
+                    "Literal Meaning (แปลตรงตัว)": f"Meaning of: {line}"
+                })
+            
+            st.session_state['df_draft'] = pd.DataFrame(data)
+            st.success("สร้างดราฟต์สำเร็จ! ไปปรับแก้ในแท็บถัดไปได้เลย")
+
+with tabs[2]:
+    st.markdown('<p class="big-font">✍️ ปรับแต่งและขัดเกลา (Interactive Polishing)</p>', unsafe_allow_html=True)
+    st.write("พื้นที่ทำงานหลัก: คุณสามารถ **ดับเบิ้ลคลิก** ที่ช่อง Translation เพื่อแก้ไขคำแปลได้ทันที")
+    
+    if not st.session_state['df_draft'].empty:
+        # ใช้ st.data_editor เป็น Smart Block-Based Workspace
+        edited_df = st.data_editor(
+            st.session_state['df_draft'],
+            use_container_width=True,
+            num_rows="dynamic",
+            column_config={
+                "Literal Meaning (แปลตรงตัว)": st.column_config.TextColumn("Literal Meaning (เทียบคำ)", disabled=True),
+                "Source (ต้นทาง)": st.column_config.TextColumn("Source", disabled=True),
+                "Syllables (พยางค์)": st.column_config.TextColumn("พยางค์", disabled=True)
+            }
+        )
+        st.session_state['df_draft'] = edited_df # อัปเดตข้อมูลเมื่อแก้ไข
+        
+        st.divider()
+        st.write("### 🔠 Thematic Rhyme Finder (ตัวช่วยหาคำคล้องจอง)")
+        col1, col2 = st.columns(2)
+        with col1:
+            search_word = st.text_input("พิมพ์คำที่ต้องการหาสัมผัส (เช่น: ใจ)")
+        with col2:
+            if search_word:
+                st.info("คำแนะนำ: ไป, ไกล, นัย, ภัย, ไหล (ตรงกับ Mood: #Melancholic)")
+    else:
+        st.info("กรุณาสร้างดราฟต์ในขั้นตอนที่ 2 ก่อนครับ")
+
+# ---------------------------------------------------------
+# ขั้นตอนที่ 4: Pacing & Export
+# ---------------------------------------------------------
+with tabs[3]:
+    st.markdown('<p class="big-font">⏱️ เช็กจังหวะและส่งออก (Pacing & Export)</p>', unsafe_allow_html=True)
+    if not st.session_state['df_draft'].empty:
+        st.write("**Mock Reading Pacer (จำลองความเร็ว)**")
+        st.progress(70, text="Reading Pacing: 70% (ความเร็วอ่านกำลังดี ไม่ล้นจอ)")
+        
+        st.divider()
+        st.write("เตรียมนำไปฝังใน Aegisub หรือ Premiere Pro")
+        
+        # แปลง DataFrame เป็น CSV
+        @st.cache_data
+        def convert_df(df):
+            # เลือกเฉพาะคอลัมน์ที่จำเป็นสำหรับทำซับ
+            export_df = df[["Source (ต้นทาง)", "Translation (คำแปล)"]]
+            return export_df.to_csv(index=False).encode('utf-8')
+
+        csv = convert_df(st.session_state['df_draft'])
+
+        st.download_button(
+            label="⬇️ Export เป็นไฟล์ CSV",
+            data=csv,
+            file_name='lyricmuse_subtitles.csv',
+            mime='text/csv',
+            type="primary"
+        )
+    else:
+        st.info("ยังไม่มีข้อมูลสำหรับ Export ครับ")
