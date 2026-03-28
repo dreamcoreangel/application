@@ -106,14 +106,15 @@ with tabs[2]:
         
         st.divider()
         
-        # ส่วนสำหรับการ Export ถูกย้ายมาไว้ด้านล่างตาราง
+        # ส่วนสำหรับการ Export 
         st.write("### 💾 ส่งออกไฟล์ (Export)")
-        st.write("เมื่อปรับแก้คำแปลเรียบร้อยแล้ว สามารถกดดาวน์โหลดไฟล์ CSV นำไปฝังในโปรแกรมทำซับไตเติลได้ทันที")
+        st.write("เมื่อปรับแก้คำแปลเรียบร้อยแล้ว สามารถกดดาวน์โหลดไฟล์ CSV นำไปเปิดใน Excel หรือโปรแกรมทำซับไตเติลได้ทันที")
         
         @st.cache_data
         def convert_df(df):
             export_df = df[["Source (ต้นทาง)", "Translation (คำแปล)"]]
-            return export_df.to_csv(index=False).encode('utf-8')
+            # ใช้ utf-8-sig เพื่อให้ Excel อ่านภาษาไทยได้ถูกต้อง
+            return export_df.to_csv(index=False).encode('utf-8-sig')
 
         csv = convert_df(st.session_state['df_draft'])
 
