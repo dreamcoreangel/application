@@ -3,87 +3,84 @@ import pandas as pd
 import time
 import random
 import json
+import re
 import google.generativeai as genai
 
 # --- ตั้งค่าหน้าเพจ ---
 st.set_page_config(page_title="LyricMuse | Smart Subtitle Studio", page_icon="🎼", layout="wide")
 
-# --- การตั้งค่า Gemini API (จัดการความลับผ่าน Streamlit Secrets) ---
-# อย่าใส่ API key ลงในโค้ดโดยตรง!
-# ให้ไปที่ Advanced Settings -> Secrets ใน Streamlit Cloud Dashboard และใส่:
-# gemini_api_key = "YOUR_API_KEY_HERE"
+# --- การตั้งค่า Gemini API ---
 try:
     api_key = st.secrets["gemini_api_key"]
     genai.configure(api_key=api_key)
     
-    # ให้ระบบค้นหาโมเดลที่รองรับการสร้างข้อความโดยอัตโนมัติ
+    # ค้นหาโมเดลที่รองรับอัตโนมัติ
     available_model = None
     for m in genai.list_models():
         if 'generateContent' in m.supported_generation_methods:
             available_model = m.name
-            break # เจอโมเดลแรกที่ใช้ได้ให้เลือกตัวนั้นเลย
+            break 
             
     if available_model:
         model = genai.GenerativeModel(available_model)
     else:
-        st.error("ไม่พบโมเดล AI ที่รองรับในบัญชีของคุณ")
+        st.error("ไม่พบโมเดล AI ที่รองรับ")
         model = None
         
 except Exception as e:
     st.error(f"การตั้งค่า Gemini API ล้มเหลว: {e}")
     model = None
 
-# --- ฟังก์ชันจำลอง AI และ ฟังก์ชันแปลจริง ---
+# --- ฟังก์ชัน AI ---
 def analyze_mood(text):
     if not model: return ["#Error"]
-    
-    prompt = f"Analyze the mood of these song lyrics. Provide only 2 tags, e.g., '#Fantasy, #Melancholic'. Do not provide any conversational text. Lyrics: '{text[:2000]}...'" # จำกัดจำนวนตัวอักษรเพื่อความปลอดภัย
-    
+    prompt = f"Analyze the mood of these song lyrics. Provide only 2 tags, e.g., '#Fantasy, #Melancholic'. Do not provide any conversational text. Lyrics: '{text[:2000]}...'"
     try:
         response = model.generate_content(prompt)
         return response.text.strip().split(', ')
-    except Exception as e:
-        st.warning(f"การวิเคราะห์อารมณ์ล้มเหลว: {e}")
+    except Exception:
         return ["#AnalysisError"]
 
-# ฟังก์ชันแปลและปรับโทนโดยใช้ Gemini API
-def get_llm_translation_and_polishing(text, tone, mood_tags):
-    if not model: return text, text # คืนค่าเดิมถ้าไม่มีโมเดล
+# ฟังก์ชันแปลแบบ "มัดรวมรวดเดียว (Batch)"
+def batch_translate_lyrics(lines, tone, mood_tags):
+    if not model: 
+        return [{"source": line, "literal_thai": line, "polishing_thai": line} for line in lines]
+        
+    mood_context = f" considering the mood '{', '.join(mood_tags)}'" if mood_tags else ""
     
-    # ถ้าเป็นพวกแท็กโครงสร้างเพลง เช่น [Verse 1] ให้ข้ามการแปล
-    if text.strip().startswith("[") and text.strip().endswith("]"):
-        return text, text
+    # จัดเตรียมเนื้อเพลงแบบใส่ตัวเลข เพื่อไม่ให้ AI ข้ามบรรทัด
+    numbered_lines = "\n".join([f"{i}:: {line}" for i, line in enumerate(lines)])
+    
+    prompt = f"""You are an expert lyric translator. Translate the following lyrics into Thai.
+    Tone requested: '{tone}'{mood_context}.
+    
+    Output MUST be strictly a JSON array of objects. Do not write anything else.
+    Each object must have these exact keys:
+    "source": the original lyric line
+    "literal_thai": literal direct translation
+    "polishing_thai": creative translation matching the tone (if line is a tag like [Chorus], keep it as is).
 
-    mood_context = f" considering the general mood '{', '.join(mood_tags)}'" if mood_tags else ""
-
-    # สร้าง Prompt ที่ชาญฉลาด
-    # ขอกลับมาเป็น JSON เพื่อแยกคำแปลตรงตัว (literal) และคำแปลปรับโทน (polishing)
-    prompt = f"""You are an expert lyric translator and a poet. Translate the following lyrics from its original language into Thai. 
-    Provide two versions of the translation:
-    1. A literal, direct translation into Thai.
-    2. A creative translation into Thai that matches the requested tone of '{tone}'{mood_context}.
-
-    Make sure the creative translation is poetic and suitable for song lyrics.
-    The output should be strictly a JSON object with two keys: 'literal_thai' and 'polishing_thai'.
-    Do not include markdown formatting or any other text in the output.
-
-    Text to translate:
-    '{text}'
+    Lyrics to translate:
+    {numbered_lines}
     """
 
     try:
         response = model.generate_content(prompt)
-        # ตรวจสอบว่าผลลัพธ์เป็น JSON ที่ถูกต้องหรือไม่
-        json_str = response.text.strip()
-        # บางครั้ง LLM อาจใส่ markdown block ในผลลัพธ์
-        if json_str.startswith("```json") and json_str.endswith("```"):
-            json_str = json_str[7:-3].strip()
+        text_response = response.text.strip()
         
-        result = json.loads(json_str)
-        return result['literal_thai'], result['polishing_thai']
+        # ใช้ Regex เพื่อดึงมาเฉพาะส่วนที่เป็น JSON Array [...] (ป้องกัน AI พิมพ์ข้อความอื่นแถมมา)
+        match = re.search(r'\[.*\]', text_response, re.DOTALL)
+        if match:
+            json_str = match.group(0)
+            result = json.loads(json_str)
+            return result
+        else:
+            raise ValueError("รูปแบบข้อมูลที่ AI ตอบกลับมาไม่ถูกต้อง")
+            
     except Exception as e:
-        # st.warning(f"การแปลภาษาล้มเหลว: {e}") # ปิดเพื่อไม่ให้ UI ดูรก
-        return text, text # คืนค่าเดิมถ้าล้มเหลว
+        st.error(f"⚠️ เกิดข้อผิดพลาดในการแปล: {e}")
+        # ถ้าพัง ให้คืนค่าเดิมกลับไป จะได้แก้ไขแมนนวลต่อได้
+        return [{"source": line, "literal_thai": line, "polishing_thai": line} for line in lines]
 
 # --- UI สไตล์ CSS ตกแต่ง ---
 st.markdown("""
@@ -109,9 +106,7 @@ if 'mood_tags' not in st.session_state:
 if 'df_draft' not in st.session_state:
     st.session_state['df_draft'] = pd.DataFrame()
 
-# ---------------------------------------------------------
-# ขั้นตอนที่ 1: Ingest & Analyze
-# ---------------------------------------------------------
+# --- Tab 1 ---
 with tabs[0]:
     st.markdown('<p class="big-font">📝 วางเนื้อหาและให้ AI ทำความเข้าใจ</p>', unsafe_allow_html=True)
     raw_text = st.text_area("วางเนื้อเพลงต้นทาง:", height=200, placeholder="Paste your lyrics here...")
@@ -120,7 +115,6 @@ with tabs[0]:
         if raw_text and model:
             with st.spinner("AI กำลังกวาดสายตาอ่านเนื้อเพลง..."):
                 st.session_state['raw_lyrics'] = raw_text
-                # ใช้ Gemini วิเคราะห์อารมณ์
                 st.session_state['mood_tags'] = analyze_mood(raw_text)
                 st.session_state['analyzed'] = True
                 st.success("วิเคราะห์เสร็จสิ้น! ไปที่แท็บ '2. Smart First Draft' ได้เลย")
@@ -134,9 +128,7 @@ with tabs[0]:
         tags_html = "".join([f'<span class="tag">{tag}</span>' for tag in st.session_state['mood_tags']])
         st.markdown(tags_html, unsafe_allow_html=True)
 
-# ---------------------------------------------------------
-# ขั้นตอนที่ 2: Smart First Draft
-# ---------------------------------------------------------
+# --- Tab 2 ---
 with tabs[1]:
     st.markdown('<p class="big-font">✨ สร้างวัตถุดิบตั้งต้น (The Smart First Draft)</p>', unsafe_allow_html=True)
     if not st.session_state['analyzed']:
@@ -156,42 +148,27 @@ with tabs[1]:
             lines = st.session_state['raw_lyrics'].strip().split('\n')
             lines = [line.strip() for line in lines if line.strip() != ""] 
             
-            data = []
-            # สร้าง Progress bar ตอนแปล
-            progress_text = "กำลังแปลและปรับโทนเนื้อเพลงทีละบรรทัดด้วย Gemini AI..."
-            my_bar = st.progress(0, text=progress_text)
-            
-            for i, line in enumerate(lines):
-                # โทรหา Gemini API เพื่อแปลและปรับโทน
-                literal_th, polishing_th = get_llm_translation_and_polishing(line, tone_selected, st.session_state['mood_tags'])
+            # ใช้ st.spinner แทน Progress Bar เพราะส่งรวดเดียว
+            with st.spinner("กำลังแปลและปรับโทนเนื้อเพลงรวดเดียวทั้งเพลง (อาจใช้เวลา 10-20 วินาที)..."):
+                translated_data = batch_translate_lyrics(lines, tone_selected, st.session_state['mood_tags'])
                 
-                # กำหนดให้คำแปลดราฟต์คือคำแปลปรับโทนเลยครับ
-                draft_th = polishing_th
-
-                # สร้าง Data โดย **ลบ key 'Syllables' ออก**
-                data.append({
-                    "Source (ต้นทาง)": line,
-                    "Translation (คำแปล)": draft_th,
-                    "Literal Meaning (แปลตรงตัว)": literal_th
-                })
+                data = []
+                for item in translated_data:
+                    data.append({
+                        "Source (ต้นทาง)": item.get("source", ""),
+                        "Translation (คำแปล)": item.get("polishing_thai", ""),
+                        "Literal Meaning (แปลตรงตัว)": item.get("literal_thai", "")
+                    })
                 
-                # อัปเดต Progress bar
-                my_bar.progress((i + 1) / len(lines), text=progress_text)
-            
-            st.session_state['df_draft'] = pd.DataFrame(data)
-            my_bar.empty()
-            st.success("สร้างดราฟต์สำเร็จ! ไปปรับแก้ในแท็บที่ 3 ได้เลย")
+                st.session_state['df_draft'] = pd.DataFrame(data)
+                st.success("สร้างดราฟต์สำเร็จ! ไปปรับแก้ในแท็บที่ 3 ได้เลย")
 
-# ---------------------------------------------------------
-# ขั้นตอนที่ 3: Interactive Polishing
-# ---------------------------------------------------------
+# --- Tab 3 ---
 with tabs[2]:
     st.markdown('<p class="big-font">✍️ ปรับแต่งและขัดเกลา (Interactive Polishing)</p>', unsafe_allow_html=True)
     st.write("พื้นที่ทำงานหลัก: คุณสามารถ **ดับเบิ้ลคลิก** ที่ช่อง Translation เพื่อแก้ไขคำแปลได้ทันที")
     
     if not st.session_state['df_draft'].empty:
-        # แสดง Data Editor โดยกำหนดลำดับคอลัมน์ใหม่ Source -> Translation -> Literal
-        # **ลบการตั้งค่าคอลัมน์ "พยางค์" ออก**
         edited_df = st.data_editor(
             st.session_state['df_draft'],
             use_container_width=True,
@@ -215,9 +192,7 @@ with tabs[2]:
     else:
         st.info("กรุณาสร้างดราฟต์ในขั้นตอนที่ 2 ก่อนครับ")
 
-# ---------------------------------------------------------
-# ขั้นตอนที่ 4: Pacing & Export
-# ---------------------------------------------------------
+# --- Tab 4 ---
 with tabs[3]:
     st.markdown('<p class="big-font">⏱️ เช็กจังหวะและส่งออก (Pacing & Export)</p>', unsafe_allow_html=True)
     if not st.session_state['df_draft'].empty:
