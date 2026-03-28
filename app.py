@@ -12,9 +12,6 @@ def analyze_mood(text):
     moods = ["#Melancholic", "#Fantasy", "#Empowering", "#Romantic", "#Upbeat", "#Creepy"]
     return random.sample(moods, 2)
 
-def count_syllables(text):
-    return len(str(text).split())
-
 # ฟังก์ชันแปลภาษาจริงๆ โดยใช้ deep-translator
 def get_real_translation(text):
     # ถ้าเป็นพวกแท็กโครงสร้างเพลง เช่น [Verse 1] ให้ข้ามการแปล
@@ -78,11 +75,13 @@ with tabs[1]:
     if not st.session_state['analyzed']:
         st.info("กรุณาวิเคราะห์เนื้อเพลงในขั้นตอนที่ 1 ก่อนครับ")
     else:
+        st.write("### 🎚️ ปรับระดับภาษา (Tone Slider)")
         tone_selected = st.select_slider(
-            "🎚️ ปรับระดับภาษา (Tone & Register Slider)",
+            "ระดับภาษาที่ต้องการ:",
             options=["Casual (กันเอง)", "Contemporary (ร่วมสมัย)", "Literary (ภาษากวี)"],
             value="Contemporary (ร่วมสมัย)"
         )
+        st.write("**หมายเหตุ:** การปรับโทนภาษาจริงที่สละสลวยจำเป็นต้องเชื่อมต่อ API ของ LLM (เช่น Gemini หรือ GPT) เพื่อประมวลผลตามบริบท ในเวอร์ชันนี้ระบบจะทำการแปลตรงตัวก่อนเป็นฐานสำหรับการขัดเกลา")
         
         if st.button("🪄 สร้างดราฟต์แรก (Generate Draft)"):
             lines = st.session_state['raw_lyrics'].strip().split('\n')
@@ -94,25 +93,16 @@ with tabs[1]:
             my_bar = st.progress(0, text=progress_text)
             
             for i, line in enumerate(lines):
-                # 1. แปลตรงตัว (Literal)
+                # แปลภาษาจริงๆ โดยใช้ GoogleTranslator
                 literal_th = get_real_translation(line)
                 
-                # 2. จำลองการปรับโทน (Draft)
-                # ในอนาคตถ้าอยากให้แปลภาษากวีสวยๆ ต้องต่อ API ของ LLM ครับ (ตอนนี้จำลองเติมท้ายประโยคให้เห็นภาพก่อน)
+                # ในเวอร์ชันนี้ กำหนดให้คำแปลดราฟต์คือคำแปลตรงตัวเลยครับ
                 draft_th = literal_th
-                if not (line.startswith("[") and line.endswith("]")):
-                    if tone_selected == "Literary (ภาษากวี)":
-                        draft_th = f"{literal_th} (ดั่งกวี)"
-                    elif tone_selected == "Casual (กันเอง)":
-                        draft_th = f"{literal_th} (ชิลๆ)"
 
-                src_syl = count_syllables(line)
-                tgt_syl = count_syllables(draft_th)
-                
+                # สร้าง Data โดย **ลบ key 'Syllables' ออก**
                 data.append({
                     "Source (ต้นทาง)": line,
                     "Translation (คำแปล)": draft_th,
-                    "Syllables (พยางค์)": f"{src_syl} -> {tgt_syl}",
                     "Literal Meaning (แปลตรงตัว)": literal_th
                 })
                 
@@ -131,14 +121,16 @@ with tabs[2]:
     st.write("พื้นที่ทำงานหลัก: คุณสามารถ **ดับเบิ้ลคลิก** ที่ช่อง Translation เพื่อแก้ไขคำแปลได้ทันที")
     
     if not st.session_state['df_draft'].empty:
+        # แสดง Data Editor โดยกำหนดลำดับคอลัมน์ใหม่ Source -> Translation -> Literal
+        # **ลบการตั้งค่าคอลัมน์ "พยางค์" ออก**
         edited_df = st.data_editor(
             st.session_state['df_draft'],
             use_container_width=True,
             num_rows="dynamic",
+            column_order=["Source (ต้นทาง)", "Translation (คำแปล)", "Literal Meaning (แปลตรงตัว)"],
             column_config={
                 "Literal Meaning (แปลตรงตัว)": st.column_config.TextColumn("Literal Meaning (เทียบคำ)", disabled=True),
-                "Source (ต้นทาง)": st.column_config.TextColumn("Source", disabled=True),
-                "Syllables (พยางค์)": st.column_config.TextColumn("พยางค์", disabled=True)
+                "Source (ต้นทาง)": st.column_config.TextColumn("Source", disabled=True)
             }
         )
         st.session_state['df_draft'] = edited_df 
