@@ -16,7 +16,7 @@ try:
     api_key = st.secrets["gemini_api_key"]
     genai.configure(api_key=api_key)
     # ใช้ model 'gemini-1.5-flash' หรือ 'gemini-1.5-pro' ก็ได้
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-pro')
 except Exception as e:
     st.error(f"การตั้งค่า Gemini API ล้มเหลว: {e}. กรุณาตรวจสอบให้แน่ใจว่าได้ตั้งค่า API key ใน Streamlit Secrets แล้ว (gemini_api_key = 'KEY_ของ_คุณ')")
     model = None
