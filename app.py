@@ -2,28 +2,28 @@ import streamlit as st
 import pandas as pd
 import time
 import random
+from deep_translator import GoogleTranslator
 
 # --- ตั้งค่าหน้าเพจ ---
 st.set_page_config(page_title="LyricMuse | Smart Subtitle Studio", page_icon="🎼", layout="wide")
 
-# --- ฟังก์ชันจำลอง AI (Mockup Functions) ---
-# ในการใช้งานจริง คุณสามารถเชื่อมต่อ Gemini API หรือ OpenAI API ในส่วนนี้ได้
+# --- ฟังก์ชันจำลอง AI และ ฟังก์ชันแปลจริง ---
 def analyze_mood(text):
-    moods = ["#Melancholic", "#Fantasy", "#Empowering", "#Romantic", "#Upbeat"]
+    moods = ["#Melancholic", "#Fantasy", "#Empowering", "#Romantic", "#Upbeat", "#Creepy"]
     return random.sample(moods, 2)
 
 def count_syllables(text):
-    # จำลองการนับพยางค์ (ใช้งานจริงอาจใช้ไลบรารี PyThaiNLP หรือนับสระภาษาอังกฤษ)
     return len(str(text).split())
 
-def mock_translate(text, tone):
-    # จำลองการแปลตามระดับภาษา
-    if tone == "Literary (ภาษากวี)":
-        return "ดั่งสายลมกระซิบผ่านกาลเวลา"
-    elif tone == "Contemporary (ร่วมสมัย)":
-        return "เหมือนลมที่พัดผ่านไปอย่างช้าๆ"
-    else:
-        return "เหมือนลมที่พัดไป"
+# ฟังก์ชันแปลภาษาจริงๆ โดยใช้ deep-translator
+def get_real_translation(text):
+    # ถ้าเป็นพวกแท็กโครงสร้างเพลง เช่น [Verse 1] ให้ข้ามการแปล
+    if text.strip().startswith("[") and text.strip().endswith("]"):
+        return text
+    try:
+        return GoogleTranslator(source='auto', target='th').translate(text)
+    except Exception as e:
+        return text
 
 # --- UI สไตล์ CSS ตกแต่ง ---
 st.markdown("""
@@ -40,7 +40,6 @@ st.divider()
 # --- Workflow ขั้นตอนต่างๆ ---
 tabs = st.tabs(["1. Ingest & Analyze", "2. Smart First Draft", "3. Interactive Polishing", "4. Pacing & Export"])
 
-# ตัวแปรสำหรับเก็บข้อมูลชั่วคราว (Session State)
 if 'raw_lyrics' not in st.session_state:
     st.session_state['raw_lyrics'] = ""
 if 'analyzed' not in st.session_state:
@@ -53,12 +52,12 @@ if 'df_draft' not in st.session_state:
 # ---------------------------------------------------------
 with tabs[0]:
     st.markdown('<p class="big-font">📝 วางเนื้อหาและให้ AI ทำความเข้าใจ</p>', unsafe_allow_html=True)
-    raw_text = st.text_area("วางเนื้อเพลงต้นทาง (ภาษาอังกฤษ / ภาษาอื่นๆ):", height=200, placeholder="Paste your lyrics here...")
+    raw_text = st.text_area("วางเนื้อเพลงต้นทาง:", height=200, placeholder="Paste your lyrics here...")
     
     if st.button("🔍 ถอดรหัสและวิเคราะห์ (Analyze)", type="primary"):
         if raw_text:
             with st.spinner("AI กำลังกวาดสายตาอ่านเนื้อเพลง..."):
-                time.sleep(1) # จำลองเวลาประมวลผล
+                time.sleep(1)
                 st.session_state['raw_lyrics'] = raw_text
                 st.session_state['mood_tags'] = analyze_mood(raw_text)
                 st.session_state['analyzed'] = True
@@ -72,7 +71,7 @@ with tabs[0]:
         st.markdown(tags_html, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# ขั้นตอนที่ 2 & 3: Smart First Draft & Interactive Polishing
+# ขั้นตอนที่ 2: Smart First Draft
 # ---------------------------------------------------------
 with tabs[1]:
     st.markdown('<p class="big-font">✨ สร้างวัตถุดิบตั้งต้น (The Smart First Draft)</p>', unsafe_allow_html=True)
@@ -87,30 +86,51 @@ with tabs[1]:
         
         if st.button("🪄 สร้างดราฟต์แรก (Generate Draft)"):
             lines = st.session_state['raw_lyrics'].strip().split('\n')
-            lines = [line for line in lines if line.strip() != ""] # ลบบรรทัดว่าง
+            lines = [line.strip() for line in lines if line.strip() != ""] 
             
             data = []
-            for line in lines:
+            # สร้าง Progress bar ตอนแปล
+            progress_text = "กำลังแปลเนื้อเพลงทีละบรรทัด..."
+            my_bar = st.progress(0, text=progress_text)
+            
+            for i, line in enumerate(lines):
+                # 1. แปลตรงตัว (Literal)
+                literal_th = get_real_translation(line)
+                
+                # 2. จำลองการปรับโทน (Draft)
+                # ในอนาคตถ้าอยากให้แปลภาษากวีสวยๆ ต้องต่อ API ของ LLM ครับ (ตอนนี้จำลองเติมท้ายประโยคให้เห็นภาพก่อน)
+                draft_th = literal_th
+                if not (line.startswith("[") and line.endswith("]")):
+                    if tone_selected == "Literary (ภาษากวี)":
+                        draft_th = f"{literal_th} (ดั่งกวี)"
+                    elif tone_selected == "Casual (กันเอง)":
+                        draft_th = f"{literal_th} (ชิลๆ)"
+
                 src_syl = count_syllables(line)
-                translated = mock_translate(line, tone_selected)
-                tgt_syl = count_syllables(translated)
+                tgt_syl = count_syllables(draft_th)
                 
                 data.append({
                     "Source (ต้นทาง)": line,
-                    "Translation (คำแปล)": translated,
+                    "Translation (คำแปล)": draft_th,
                     "Syllables (พยางค์)": f"{src_syl} -> {tgt_syl}",
-                    "Literal Meaning (แปลตรงตัว)": f"Meaning of: {line}"
+                    "Literal Meaning (แปลตรงตัว)": literal_th
                 })
+                
+                # อัปเดต Progress bar
+                my_bar.progress((i + 1) / len(lines), text=progress_text)
             
             st.session_state['df_draft'] = pd.DataFrame(data)
-            st.success("สร้างดราฟต์สำเร็จ! ไปปรับแก้ในแท็บถัดไปได้เลย")
+            my_bar.empty()
+            st.success("สร้างดราฟต์สำเร็จ! ไปปรับแก้ในแท็บที่ 3 ได้เลย")
 
+# ---------------------------------------------------------
+# ขั้นตอนที่ 3: Interactive Polishing
+# ---------------------------------------------------------
 with tabs[2]:
     st.markdown('<p class="big-font">✍️ ปรับแต่งและขัดเกลา (Interactive Polishing)</p>', unsafe_allow_html=True)
     st.write("พื้นที่ทำงานหลัก: คุณสามารถ **ดับเบิ้ลคลิก** ที่ช่อง Translation เพื่อแก้ไขคำแปลได้ทันที")
     
     if not st.session_state['df_draft'].empty:
-        # ใช้ st.data_editor เป็น Smart Block-Based Workspace
         edited_df = st.data_editor(
             st.session_state['df_draft'],
             use_container_width=True,
@@ -121,7 +141,7 @@ with tabs[2]:
                 "Syllables (พยางค์)": st.column_config.TextColumn("พยางค์", disabled=True)
             }
         )
-        st.session_state['df_draft'] = edited_df # อัปเดตข้อมูลเมื่อแก้ไข
+        st.session_state['df_draft'] = edited_df 
         
         st.divider()
         st.write("### 🔠 Thematic Rhyme Finder (ตัวช่วยหาคำคล้องจอง)")
@@ -130,7 +150,7 @@ with tabs[2]:
             search_word = st.text_input("พิมพ์คำที่ต้องการหาสัมผัส (เช่น: ใจ)")
         with col2:
             if search_word:
-                st.info("คำแนะนำ: ไป, ไกล, นัย, ภัย, ไหล (ตรงกับ Mood: #Melancholic)")
+                st.info("คำแนะนำ: ไป, ไกล, นัย, ภัย, ไหล (อ้างอิงจาก Mood ของเพลง)")
     else:
         st.info("กรุณาสร้างดราฟต์ในขั้นตอนที่ 2 ก่อนครับ")
 
@@ -146,10 +166,8 @@ with tabs[3]:
         st.divider()
         st.write("เตรียมนำไปฝังใน Aegisub หรือ Premiere Pro")
         
-        # แปลง DataFrame เป็น CSV
         @st.cache_data
         def convert_df(df):
-            # เลือกเฉพาะคอลัมน์ที่จำเป็นสำหรับทำซับ
             export_df = df[["Source (ต้นทาง)", "Translation (คำแปล)"]]
             return export_df.to_csv(index=False).encode('utf-8')
 
